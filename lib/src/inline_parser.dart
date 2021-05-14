@@ -98,6 +98,31 @@ class InlineParser {
     }
   }
 
+  /// This constructor doesn't add any of the default syntaxes. It only adds
+  /// the syntaxes specified in the document, document's extension set and
+  /// in the constructor
+  InlineParser.onlySpecifiedSyntaxes(
+      this.source, this.document, List<InlineSyntax> customSyntaxes) {
+    syntaxes.addAll(document.inlineSyntaxes);
+
+    var hasCustomInlineSyntaxes = document.inlineSyntaxes
+        .any((s) => !document.extensionSet.inlineSyntaxes.contains(s));
+
+    // This first RegExp matches plain text to accelerate parsing. It's written
+    // so that it does not match any prefix of any following syntaxes. Most
+    // Markdown is plain text, so it's faster to match one RegExp per 'word'
+    // rather than fail to match all the following RegExps at each non-syntax
+    // character position.
+    if (hasCustomInlineSyntaxes) {
+      // We should be less aggressive in blowing past "words".
+      syntaxes.add(TextSyntax(r'[A-Za-z0-9]+(?=\s)'));
+    } else {
+      syntaxes.add(TextSyntax(r'[ \tA-Za-z0-9]*[A-Za-z0-9](?=\s)'));
+    }
+
+    syntaxes.addAll(customSyntaxes);
+  }
+
   List<Node> parse() {
     while (!isDone) {
       // A right bracket (']') is special. Hitting this character triggers the
@@ -788,7 +813,7 @@ class DelimiterRun implements Delimiter {
     required bool isPrecededByPunctuation,
     required bool isFollowedByPunctuation,
     required this.allowIntraWord,
-  })  : canOpen = isLeftFlanking &&
+  })   : canOpen = isLeftFlanking &&
             (char == $asterisk ||
                 !isRightFlanking ||
                 allowIntraWord ||
